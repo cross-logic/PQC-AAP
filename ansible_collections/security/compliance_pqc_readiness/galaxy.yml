@@ -1,0 +1,31 @@
+---
+namespace: security
+name: compliance_pqc_readiness
+version: 0.2.0
+readme: README.md
+authors:
+  - Nuno Martins (@nunom11)
+  - Red Hat Ansible Security Team
+description: >
+  Post-Quantum Cryptography readiness compliance profile for RHEL 8/9.
+  Read-only cryptographic posture discovery using native OS tools (openssl,
+  ssh-keygen, ss, update-crypto-policies). Evaluates PQC readiness across
+  certificates, SSH keys, TLS services, and crypto-policies. Produces
+  Common Findings Format (CFF) v1.0.0 JSON for the Backstage compliance plugin.
+  Installable as a compliance profile on the AAP Compliance Pipelines.
+license_file: LICENSE
+tags:
+  - compliance
+  - pqc
+  - cryptography
+  - security
+  - rhel9
+  - quantum
+  - postquantum
+dependencies:
+  community.crypto: ">=2.0.0"
+  ansible.posix: ">=1.5.0"
+  community.general: ">=5.0.0"
+repository: https://github.com/cross-logic/PQC-AAP
+documentation: https://github.com/cross-logic/PQC-AAP
+issues: https://github.com/cross-logic/PQC-AAP/issues

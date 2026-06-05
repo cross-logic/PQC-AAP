@@ -1,0 +1,29 @@
+---
+# Compliance Profile Metadata
+#
+# This file declares the profile's identity and capabilities.
+# It is read by the Backstage compliance plugin to auto-populate
+# profile registration fields when a user selects a scan JT.
+# These values are also set as JT default extra_vars during
+# profile installation (install.yml).
+
+profile:
+  name: "PQC Cryptographic Readiness"
+  framework: "CUSTOM"
+  version: "v1.0.0"
+  platform: "RHEL 8/9"
+  scanner: "custom"
+  oscap_xccdf_profile: ""
+  remediation_playbook: "playbooks/remediate.yml"
+  remediate_jt_name: "compliance-remediate-pqc-readiness"
+  certification:
+    status: "uncertified"
+    authority: ""
+    disclaimer: >
+      PQC readiness assessment uses native OS tools (openssl, ssh-keygen,
+      update-crypto-policies) with custom evaluation rules. Not validated
+      by any formal certification authority. Results indicate cryptographic
+      posture readiness for post-quantum migration.
+  platform_spec:
+    os_family: ["RedHat"]
+    os_version: ["8", "9"]

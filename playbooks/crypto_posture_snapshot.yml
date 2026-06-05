@@ -1,0 +1,90 @@
+---
+- name: Cryptographic posture snapshot
+  hosts: pqc_targets
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: crypto_posture_snapshot
+
+  tasks:
+    - name: Show cryptographic posture report
+      ansible.builtin.debug:
+        var: pqc_crypto_report
+
+    - name: Write JSON report on the Ansible control node
+      ansible.builtin.copy:
+        dest: "{{ (playbook_dir | dirname) }}/reports/{{ inventory_hostname }}.json"
+        content: "{{ pqc_crypto_report | to_nice_json }}\n"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      when: pqc_write_local_report | bool
+
+    - name: Generate per-host HTML report
+      ansible.builtin.template:
+        src: "{{ (playbook_dir | dirname) }}/roles/crypto_posture_snapshot/templates/report.html.j2"
+        dest: "{{ (playbook_dir | dirname) }}/reports/{{ inventory_hostname }}.html"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      when: pqc_write_html_report | bool
+
+    - name: Export per-host PDF report
+      ansible.builtin.shell:
+        cmd: >-
+          weasyprint
+          "{{ (playbook_dir | dirname) }}/reports/{{ inventory_hostname }}.html"
+          "{{ (playbook_dir | dirname) }}/reports/{{ inventory_hostname }}.pdf"
+      delegate_to: localhost
+      become: false
+      changed_when: true
+      when: pqc_write_pdf_report | bool
+
+- name: Generate aggregate fleet report
+  hosts: localhost
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Collect reports from all scanned hosts
+      ansible.builtin.set_fact:
+        _pqc_all_reports: >-
+          {{ groups['pqc_targets']
+             | map('extract', hostvars, 'pqc_crypto_report')
+             | select('defined')
+             | list }}
+
+    - name: Write aggregate JSON report
+      ansible.builtin.copy:
+        dest: "{{ (playbook_dir | dirname) }}/reports/pqc_fleet_report.json"
+        content: "{{ _pqc_aggregate | to_nice_json }}\n"
+        mode: "0644"
+      vars:
+        _pqc_aggregate:
+          generated_at: "{{ ansible_date_time.iso8601 }}"
+          total_hosts: "{{ _pqc_all_reports | length }}"
+          hosts: "{{ _pqc_all_reports }}"
+      when: pqc_write_local_report | default(false) | bool
+
+    - name: Generate aggregate HTML report
+      ansible.builtin.template:
+        src: "{{ (playbook_dir | dirname) }}/roles/crypto_posture_snapshot/templates/report_aggregate.html.j2"
+        dest: "{{ (playbook_dir | dirname) }}/reports/pqc_fleet_report.html"
+        mode: "0644"
+      when: pqc_write_html_report | default(false) | bool
+
+    - name: Export aggregate PDF report
+      ansible.builtin.shell:
+        cmd: >-
+          weasyprint
+          "{{ (playbook_dir | dirname) }}/reports/pqc_fleet_report.html"
+          "{{ (playbook_dir | dirname) }}/reports/pqc_fleet_report.pdf"
+      changed_when: true
+      when: pqc_write_pdf_report | default(false) | bool
+
+    - name: Report generation summary
+      ansible.builtin.debug:
+        msg: >-
+          Reports generated for {{ _pqc_all_reports | length }} host(s)
+          in {{ (playbook_dir | dirname) }}/reports/

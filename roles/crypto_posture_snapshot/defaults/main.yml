@@ -1,0 +1,40 @@
+---
+pqc_collect_packages: true
+pqc_collect_openssl: true
+pqc_collect_nginx_certs: true
+pqc_collect_sshd: true
+pqc_collect_ssh_host_keys: true
+pqc_collect_system_certs: true
+pqc_collect_tls_services: true
+pqc_collect_crypto_policy: true
+
+pqc_write_local_report: false
+pqc_write_html_report: false
+pqc_write_pdf_report: false
+
+pqc_openssl_package_names:
+  - openssl
+  - openssl-libs
+  - libssl3
+  - libssl1.1
+
+pqc_nginx_config_root: /etc/nginx
+
+pqc_certificate_scan_paths:
+  - /etc/pki/tls/certs
+  - /etc/pki/ca-trust/source/anchors
+  - /etc/ssl/certs
+
+pqc_certificate_scan_extensions:
+  - "*.pem"
+  - "*.crt"
+  - "*.cer"
+
+pqc_tls_probe_ports:
+  - 443
+  - 8443
+  - 636
+  - 993
+  - 995
+
+pqc_tls_probe_timeout: 5

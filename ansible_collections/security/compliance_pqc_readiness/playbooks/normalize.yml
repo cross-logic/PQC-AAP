@@ -1,0 +1,38 @@
+---
+# Standalone PQC normalization utility.
+#
+# Requires pqc_crypto_report fact from a prior crypto_posture_snapshot run.
+# Available for debugging, re-processing saved reports, and Tier 2 scanner reuse.
+# In production, normalization is handled by Play 2 of pqc_pipeline.yml.
+
+- name: Normalize PQC crypto posture to Common Findings Format
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Verify pqc_crypto_report is available
+      ansible.builtin.assert:
+        that:
+          - pqc_crypto_report is defined
+          - pqc_crypto_report | length > 0
+        fail_msg: >-
+          pqc_crypto_report fact is missing. Run the crypto_posture_snapshot role
+          before this playbook (or use playbooks/pqc_pipeline.yml for the full flow).
+
+    - name: Normalize crypto posture report to CFF
+      security.compliance_pqc_readiness.normalize_pqc:
+        crypto_report: "{{ pqc_crypto_report }}"
+      register: pqc_normalized
+
+    - name: Expose findings as ansible_facts for Backstage consumption
+      ansible.builtin.set_fact:
+        findings: "{{ pqc_normalized.findings }}"
+        pqc_summary: "{{ pqc_normalized.summary }}"
+        pqc_scan_metadata: "{{ pqc_normalized.scan_metadata }}"
+
+    - name: PQC readiness summary
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}: {{ pqc_normalized.summary.compliance_score }}% PQC ready
+          ({{ pqc_normalized.summary.pass }} pass / {{ pqc_normalized.summary.fail }} fail
+          of {{ pqc_normalized.summary.total }} checks)

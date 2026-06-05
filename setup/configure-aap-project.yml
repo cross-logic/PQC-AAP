@@ -1,0 +1,116 @@
+---
+# configure-aap-project.yml — Register PQC-AAP on Ansible Automation Platform
+#
+# Creates:
+#   1. Execution environment (optional tag ee)
+#   2. SCM project pointing at this repository (tag project)
+#
+# Prerequisites:
+#   - AAP Controller reachable from the control node
+#   - ansible.controller collection installed
+#   - EE image includes collections from collections/requirements.yml
+#
+# Usage:
+#   ansible-playbook setup/configure-aap-project.yml \
+#     -e project_scm_url=https://git.example.com/org/PQC-AAP.git
+#   ansible-playbook setup/configure-aap-project.yml --tags ee
+#   ansible-playbook setup/configure-aap-project.yml --tags project \
+#     -e project_scm_url=https://git.example.com/org/PQC-AAP.git
+#
+# Tags:
+#   ee       — Execution environment only
+#   project  — SCM project only (requires project_scm_url)
+
+- name: Register PQC-AAP project and execution environment on AAP
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aap_host: "{{ aap_controller_url | default('https://localhost') }}"
+    aap_user: "{{ aap_controller_user | default('admin') }}"
+    aap_password: "{{ lookup('env', 'AAP_ADMIN_PASSWORD') }}"
+    aap_verify_ssl: "{{ aap_controller_verify_ssl | default(false) }}"
+    aap_organization: "{{ aap_organization_name | default('Default') }}"
+
+    ee_name: PQC-AAP EE
+    ee_image: quay.io/ansible/creator-ee:latest
+
+    project_name: PQC-AAP
+    project_scm_url: ""
+    project_scm_branch: main
+
+  module_defaults:
+    group/ansible.controller.controller:
+      controller_host: "{{ aap_host }}"
+      controller_username: "{{ aap_user }}"
+      controller_password: "{{ aap_password }}"
+      validate_certs: "{{ aap_verify_ssl }}"
+
+  tasks:
+    - name: Verify AAP Controller is reachable
+      ansible.builtin.uri:
+        url: "{{ aap_host }}/api/controller/v2/ping/"
+        method: GET
+        validate_certs: "{{ aap_verify_ssl }}"
+        status_code: 200
+      register: aap_ping
+      tags: [always]
+
+    - name: Display AAP version
+      ansible.builtin.debug:
+        msg: "AAP Controller {{ aap_ping.json.version }} detected"
+      tags: [always]
+
+    - name: Require project_scm_url when managing the project
+      ansible.builtin.assert:
+        that:
+          - project_scm_url | length > 0
+        fail_msg: >-
+          Pass a non-empty project_scm_url (for example
+          -e project_scm_url=https://git.example.com/org/PQC-AAP.git).
+      tags: [project]
+
+    - name: Create PQC-AAP execution environment
+      ansible.controller.execution_environment:
+        name: "{{ ee_name }}"
+        description: >-
+          EE for PQC-AAP — use an image that includes collections from
+          collections/requirements.yml (community.crypto, ansible.posix, community.general).
+        image: "{{ ee_image }}"
+        pull: missing
+        organization: "{{ aap_organization }}"
+        state: present
+      tags: [ee]
+
+    - name: Create PQC-AAP project
+      ansible.controller.project:
+        name: "{{ project_name }}"
+        description: >-
+          PQC-AAP — read-only cryptographic posture snapshot playbooks and roles.
+        organization: "{{ aap_organization }}"
+        scm_type: git
+        scm_url: "{{ project_scm_url }}"
+        scm_branch: "{{ project_scm_branch }}"
+        scm_clean: true
+        scm_update_on_launch: true
+        default_environment: "{{ ee_name }}"
+        state: present
+      tags: [project]
+
+    - name: Wait for initial project sync to complete
+      ansible.controller.project:
+        name: "{{ project_name }}"
+        organization: "{{ aap_organization }}"
+        wait: true
+        timeout: 300
+        state: present
+      tags: [project]
+
+    - name: Display configuration summary
+      ansible.builtin.debug:
+        msg: |
+          PQC-AAP on AAP: EE '{{ ee_name }}' (image {{ ee_image }}),
+          project '{{ project_name }}' branch {{ project_scm_branch }},
+          SCM {{ project_scm_url }}
+      tags: [always]

@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  role_name: crypto_posture_snapshot
+  author: PQC-AAP
+  description: Read-only cryptographic posture snapshot for Linux hosts.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+dependencies: []

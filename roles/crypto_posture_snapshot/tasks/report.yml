@@ -1,0 +1,19 @@
+---
+- name: Assemble cryptographic posture report
+  ansible.builtin.set_fact:
+    pqc_crypto_report:
+      host: "{{ inventory_hostname }}"
+      collected_at: "{{ ansible_date_time.iso8601 }}"
+      openssl_packages: "{{ pqc_openssl_packages | default({}) }}"
+      openssl_version: "{{ pqc_openssl_version_cmd.stdout | default('') }}"
+      openssl_version_rc: "{{ pqc_openssl_version_cmd.rc | default(-1) }}"
+      openssl_tls1_3_groups: "{{ pqc_openssl_tls_groups_cmd.stdout | default('') }}"
+      openssl_tls1_3_groups_rc: "{{ pqc_openssl_tls_groups_cmd.rc | default(-1) }}"
+      crypto_policy: "{{ pqc_crypto_policy | default({}) }}"
+      ssh_host_keys: "{{ pqc_ssh_host_keys | default([]) }}"
+      system_certificates: "{{ pqc_system_certificates | default([]) }}"
+      tls_services: "{{ pqc_tls_services | default([]) }}"
+      nginx_present: "{{ pqc_nginx_present | default(false) }}"
+      nginx_certificates: "{{ pqc_nginx_certificate_details | default([]) }}"
+      sshd_crypto_lines: "{{ pqc_sshd_crypto_lines | default([]) }}"
+      sshd_crypto_lines_commented: "{{ pqc_sshd_crypto_lines_commented | default([]) }}"

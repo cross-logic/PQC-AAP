@@ -1,0 +1,38 @@
+---
+# PQC Compliance Pipeline — single playbook for Backstage integration.
+#
+# This playbook is designed to run as an AAP job template triggered by the
+# Backstage compliance plugin. It performs:
+#   1. Cryptographic posture discovery (the existing snapshot role)
+#   2. Normalization to Common Findings Format (CFF v1.0.0)
+#
+# The Backstage backend extracts findings from runner_on_ok events where
+# event_data.res.findings is present. The "Emit findings" task below
+# satisfies that contract.
+#
+# Extra vars accepted from Backstage:
+#   compliance_profile: pqc_readiness_v1  (default)
+#   evaluate_only: true                   (always true for PQC discovery)
+#   inventory_id: <aap inventory id>      (used by AAP, not this playbook)
+
+- name: PQC compliance pipeline
+  hosts: pqc_targets
+  become: true
+  gather_facts: true
+
+  vars:
+    compliance_profile: "{{ compliance_profile | default('pqc_readiness_v1') }}"
+
+  roles:
+    - role: crypto_posture_snapshot
+
+  tasks:
+    - name: Normalize crypto posture to compliance findings
+      normalize_pqc:
+        crypto_report: "{{ pqc_crypto_report }}"
+        profile_id: "{{ compliance_profile }}"
+      register: _pqc_evaluate
+
+    - name: Emit findings for Backstage consumption
+      ansible.builtin.set_fact:
+        findings: "{{ _pqc_evaluate.findings }}"

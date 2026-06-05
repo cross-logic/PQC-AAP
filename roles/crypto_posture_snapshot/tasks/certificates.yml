@@ -1,0 +1,61 @@
+---
+- name: Initialize certificate scan results
+  ansible.builtin.set_fact:
+    pqc_system_certificates: []
+  when: pqc_collect_system_certs | bool
+
+- name: Find certificate files on disk
+  ansible.builtin.find:
+    paths: "{{ pqc_certificate_scan_paths }}"
+    patterns: "{{ pqc_certificate_scan_extensions }}"
+    recurse: true
+    file_type: file
+  register: _pqc_cert_find
+  failed_when: false
+  when: pqc_collect_system_certs | bool
+
+- name: Inspect each certificate file
+  ansible.builtin.command:
+    cmd: >-
+      openssl x509 -in {{ item.path }} -noout
+      -subject -issuer -dates -text
+  loop: "{{ _pqc_cert_find.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: _pqc_cert_inspect
+  changed_when: false
+  failed_when: false
+  when: pqc_collect_system_certs | bool
+
+- name: Parse certificate details
+  ansible.builtin.set_fact:
+    pqc_system_certificates: "{{ pqc_system_certificates + [_entry] }}"
+  loop: "{{ _pqc_cert_inspect.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.path | default('unknown') }}"
+  when:
+    - pqc_collect_system_certs | bool
+    - item.rc is defined
+    - item.rc == 0
+  vars:
+    _out: "{{ item.stdout | default('') }}"
+    _subject: "{{ _out | regex_search('subject=(.+)', '\\1') | default(['unknown'], true) | first | trim }}"
+    _issuer: "{{ _out | regex_search('issuer=(.+)', '\\1') | default(['unknown'], true) | first | trim }}"
+    _not_after: "{{ _out | regex_search('notAfter=(.+)', '\\1') | default(['unknown'], true) | first | trim }}"
+    _sig_algo: "{{ _out | regex_search('Signature Algorithm: (.+)', '\\1') | default(['unknown'], true) | first | trim }}"
+    _pub_algo: "{{ _out | regex_search('Public Key Algorithm: (.+)', '\\1') | default(['unknown'], true) | first | trim }}"
+    _pub_size: "{{ _out | regex_search('Public-Key: \\((\\d+) bit\\)', '\\1') | default(['0'], true) | first | trim }}"
+    _risk: >-
+      {% set a = _pub_algo | lower %}
+      {% if 'dilithium' in a or 'ml-dsa' in a or 'sphincs' in a or 'slh-dsa' in a %}quantum_safe
+      {% elif 'rsa' in a or 'ec' in a or 'dsa' in a or 'ed25519' in a or 'ed448' in a %}quantum_vulnerable
+      {% else %}unknown{% endif %}
+    _entry:
+      path: "{{ item.item.path }}"
+      subject: "{{ _subject }}"
+      issuer: "{{ _issuer }}"
+      expires: "{{ _not_after }}"
+      signature_algorithm: "{{ _sig_algo }}"
+      public_key_algorithm: "{{ _pub_algo }}"
+      public_key_size: "{{ _pub_size | int }}"
+      risk: "{{ _risk | trim }}"

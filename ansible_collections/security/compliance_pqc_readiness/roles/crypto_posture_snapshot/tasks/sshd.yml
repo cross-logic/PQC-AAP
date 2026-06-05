@@ -1,0 +1,39 @@
+---
+- name: Initialize sshd report fields
+  ansible.builtin.set_fact:
+    pqc_sshd_crypto_lines: []
+    pqc_sshd_crypto_lines_commented: []
+  when: pqc_collect_sshd | bool
+
+- name: Slurp sshd_config
+  ansible.builtin.slurp:
+    src: /etc/ssh/sshd_config
+  register: pqc_sshd_slurp
+  when: pqc_collect_sshd | bool
+  failed_when: false
+
+- name: Parse active crypto-related sshd lines
+  ansible.builtin.set_fact:
+    pqc_sshd_crypto_lines: >-
+      {{
+        pqc_sshd_slurp.content | b64decode | split('\n')
+        | select('regex', '^(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms)\s')
+        | list
+      }}
+  when:
+    - pqc_collect_sshd | bool
+    - pqc_sshd_slurp.content is defined
+    - not (pqc_sshd_slurp.failed | default(false))
+
+- name: Parse commented crypto-related sshd lines
+  ansible.builtin.set_fact:
+    pqc_sshd_crypto_lines_commented: >-
+      {{
+        pqc_sshd_slurp.content | b64decode | split('\n')
+        | select('regex', '^\s*#\s*(Ciphers|KexAlgorithms|MACs|HostKeyAlgorithms)\s')
+        | list
+      }}
+  when:
+    - pqc_collect_sshd | bool
+    - pqc_sshd_slurp.content is defined
+    - not (pqc_sshd_slurp.failed | default(false))

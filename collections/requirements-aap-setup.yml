@@ -1,0 +1,5 @@
+---
+# Install on your laptop or bastion when running setup/configure-aap-project.yml
+# (not required on managed hosts or for crypto snapshot job templates).
+collections:
+  - name: ansible.controller

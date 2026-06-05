@@ -1,0 +1,150 @@
+---
+- name: Scan and classify hosts for PQC readiness
+  hosts: pqc_targets
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: crypto_posture_snapshot
+
+  tasks:
+    - name: Classify host PQC readiness
+      ansible.builtin.set_fact:
+        pqc_ready: >-
+          {{ (pqc_crypto_report.openssl_tls1_3_groups | default(''))
+             is regex('(?i)mlkem') }}
+
+- name: Sync PQC inventory to AAP Controller
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    aap_host: "{{ aap_controller_url | default('https://localhost') }}"
+    aap_user: "{{ aap_controller_user | default('admin') }}"
+    aap_password: "{{ lookup('env', 'AAP_ADMIN_PASSWORD') }}"
+    aap_verify_ssl: "{{ aap_controller_verify_ssl | default(false) }}"
+    aap_organization: "{{ aap_organization_name | default('Default') }}"
+    pqc_inventory_name: "PQC Crypto Assets"
+
+  module_defaults:
+    group/ansible.controller.controller:
+      controller_host: "{{ aap_host }}"
+      controller_username: "{{ aap_user }}"
+      controller_password: "{{ aap_password }}"
+      validate_certs: "{{ aap_verify_ssl }}"
+
+  tasks:
+    - name: Collect readiness data from all scanned hosts
+      ansible.builtin.set_fact:
+        _pqc_not_ready: >-
+          {{ groups['pqc_targets']
+             | map('extract', hostvars)
+             | selectattr('pqc_ready', 'defined')
+             | selectattr('pqc_ready', 'eq', false)
+             | list }}
+        _pqc_ready: >-
+          {{ groups['pqc_targets']
+             | map('extract', hostvars)
+             | selectattr('pqc_ready', 'defined')
+             | selectattr('pqc_ready', 'eq', true)
+             | list }}
+        _pqc_all: >-
+          {{ groups['pqc_targets']
+             | map('extract', hostvars)
+             | selectattr('pqc_crypto_report', 'defined')
+             | list }}
+
+    - name: Display classification summary
+      ansible.builtin.debug:
+        msg: >-
+          Scanned {{ _pqc_all | length }} host(s):
+          {{ _pqc_ready | length }} PQC ready,
+          {{ _pqc_not_ready | length }} NOT PQC ready.
+          Syncing to inventory '{{ pqc_inventory_name }}' on {{ aap_host }}.
+
+    - name: Create PQC Crypto Assets inventory
+      ansible.controller.inventory:
+        name: "{{ pqc_inventory_name }}"
+        description: >-
+          Hosts classified by Post-Quantum Cryptography readiness.
+          Auto-populated by PQC Discovery scan.
+          Last updated: {{ ansible_date_time.iso8601 }}
+        organization: "{{ aap_organization }}"
+        state: present
+
+    - name: Create readiness groups
+      ansible.controller.group:
+        name: "{{ item }}"
+        inventory: "{{ pqc_inventory_name }}"
+        state: present
+      loop:
+        - pqc_not_ready
+        - pqc_ready
+
+    - name: Create asset-type groups under pqc_not_ready
+      ansible.controller.group:
+        name: "{{ item }}"
+        inventory: "{{ pqc_inventory_name }}"
+        state: present
+      loop:
+        - pqc_not_ready_openssl_legacy
+        - pqc_not_ready_no_mlkem
+        - pqc_not_ready_classical_certs
+
+    - name: Add NOT PQC-ready hosts to inventory
+      ansible.controller.host:
+        name: "{{ item.inventory_hostname }}"
+        inventory: "{{ pqc_inventory_name }}"
+        state: present
+        variables:
+          pqc_ready: false
+          pqc_last_scanned: "{{ item.pqc_crypto_report.collected_at }}"
+          openssl_version: "{{ item.pqc_crypto_report.openssl_version | default('unknown') }}"
+          tls_groups: "{{ item.pqc_crypto_report.openssl_tls1_3_groups | default('') }}"
+          nginx_certs: "{{ item.pqc_crypto_report.nginx_certificates | default([]) | length }}"
+          ansible_host: "{{ item.ansible_host | default(item.inventory_hostname) }}"
+      loop: "{{ _pqc_not_ready }}"
+      loop_control:
+        label: "{{ item.inventory_hostname }}"
+
+    - name: Assign NOT PQC-ready hosts to pqc_not_ready group
+      ansible.controller.group:
+        name: pqc_not_ready
+        inventory: "{{ pqc_inventory_name }}"
+        hosts: "{{ _pqc_not_ready | map(attribute='inventory_hostname') | list }}"
+        state: present
+        preserve_existing_hosts: true
+      when: _pqc_not_ready | length > 0
+
+    - name: Add PQC-ready hosts to inventory
+      ansible.controller.host:
+        name: "{{ item.inventory_hostname }}"
+        inventory: "{{ pqc_inventory_name }}"
+        state: present
+        variables:
+          pqc_ready: true
+          pqc_last_scanned: "{{ item.pqc_crypto_report.collected_at }}"
+          openssl_version: "{{ item.pqc_crypto_report.openssl_version | default('unknown') }}"
+          tls_groups: "{{ item.pqc_crypto_report.openssl_tls1_3_groups | default('') }}"
+          nginx_certs: "{{ item.pqc_crypto_report.nginx_certificates | default([]) | length }}"
+          ansible_host: "{{ item.ansible_host | default(item.inventory_hostname) }}"
+      loop: "{{ _pqc_ready }}"
+      loop_control:
+        label: "{{ item.inventory_hostname }}"
+
+    - name: Assign PQC-ready hosts to pqc_ready group
+      ansible.controller.group:
+        name: pqc_ready
+        inventory: "{{ pqc_inventory_name }}"
+        hosts: "{{ _pqc_ready | map(attribute='inventory_hostname') | list }}"
+        state: present
+        preserve_existing_hosts: true
+      when: _pqc_ready | length > 0
+
+    - name: Sync complete
+      ansible.builtin.debug:
+        msg: |
+          Inventory '{{ pqc_inventory_name }}' synced on {{ aap_host }}:
+            pqc_ready:     {{ _pqc_ready | map(attribute='inventory_hostname') | join(', ') | default('(none)') }}
+            pqc_not_ready: {{ _pqc_not_ready | map(attribute='inventory_hostname') | join(', ') | default('(none)') }}

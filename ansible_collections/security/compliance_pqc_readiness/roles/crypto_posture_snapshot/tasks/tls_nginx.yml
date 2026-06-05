@@ -1,0 +1,140 @@
+---
+- name: Initialize nginx TLS report fields
+  ansible.builtin.set_fact:
+    pqc_nginx_certificate_details: []
+    pqc_existing_cert_paths: []
+  when: pqc_collect_nginx_certs | bool
+
+- name: Detect nginx binary on PATH
+  ansible.builtin.command:
+    cmd: which nginx
+  register: pqc_which_nginx
+  changed_when: false
+  failed_when: false
+  when: pqc_collect_nginx_certs | bool
+
+- name: Record whether nginx is available
+  ansible.builtin.set_fact:
+    pqc_nginx_present: "{{ pqc_which_nginx.rc == 0 }}"
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_which_nginx is defined
+
+- name: Discover nginx configuration files
+  ansible.builtin.find:
+    paths: "{{ pqc_nginx_config_root }}"
+    patterns: "*.conf"
+    recurse: true
+    file_type: file
+  register: pqc_nginx_conf_files
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+
+- name: Read nginx configs to extract ssl_certificate paths
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ pqc_nginx_conf_files.files | default([]) }}"
+  register: pqc_nginx_slurps
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+    - (pqc_nginx_conf_files.matched | default(0)) | int > 0
+
+- name: Accumulate ssl_certificate paths from nginx configs
+  ansible.builtin.set_fact:
+    pqc_raw_cert_paths: "{{ pqc_raw_cert_paths | default([]) + _trimmed }}"
+  vars:
+    _found: "{{ nginx_conf_item.content | b64decode | regex_findall('ssl_certificate\\s+([^;\\n]+)\\s*;', multiline=True) }}"
+    _trimmed: "{{ _found | map('trim') | map('regex_replace', '^\"|\"$', '') | list }}"
+  loop: "{{ pqc_nginx_slurps.results | default([]) }}"
+  loop_control:
+    loop_var: nginx_conf_item
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+    - nginx_conf_item.content is defined
+    - not (nginx_conf_item.failed | default(false))
+
+- name: Deduplicate raw certificate paths
+  ansible.builtin.set_fact:
+    pqc_unique_cert_paths: "{{ (pqc_raw_cert_paths | default([])) | unique | list }}"
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+
+- name: Resolve relative ssl_certificate paths against nginx config root
+  ansible.builtin.set_fact:
+    pqc_resolved_cert_paths: "{{ pqc_resolved_cert_paths | default([]) + [_resolved] }}"
+  vars:
+    _resolved: >-
+      {{
+        item if (item | length > 0 and item[0] == '/')
+        else (
+          (pqc_nginx_config_root | regex_replace('/$', '')) ~ '/' ~ (item | regex_replace('^/', ''))
+        ) | regex_replace('//+', '/')
+      }}
+  loop: "{{ pqc_unique_cert_paths | default([]) }}"
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+    - pqc_unique_cert_paths is defined
+    - (pqc_unique_cert_paths | length) > 0
+
+- name: Stat certificate files referenced by nginx
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ pqc_resolved_cert_paths | default([]) }}"
+  register: pqc_cert_stat_loop
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+    - pqc_resolved_cert_paths is defined
+    - (pqc_resolved_cert_paths | length) > 0
+
+- name: Keep only existing certificate paths
+  ansible.builtin.set_fact:
+    pqc_existing_cert_paths: "{{ pqc_cert_stat_loop.results | selectattr('stat.exists') | map(attribute='item') | unique | list }}"
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+    - pqc_cert_stat_loop is defined
+    - pqc_cert_stat_loop.results is defined
+
+- name: Inspect TLS certificates referenced by nginx
+  community.crypto.x509_certificate_info:
+    path: "{{ item }}"
+    valid_at:
+      now: "+0s"
+  loop: "{{ pqc_existing_cert_paths | default([]) }}"
+  register: pqc_x509_loop
+  changed_when: false
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+
+- name: Normalize certificate inspection results for reporting
+  ansible.builtin.set_fact:
+    pqc_nginx_certificate_details: "{{ pqc_nginx_certificate_details | default([]) + [_row] }}"
+  vars:
+    _row:
+      path: "{{ cert_result.item }}"
+      subject: "{{ cert_result.subject | default({}) }}"
+      issuer: "{{ cert_result.issuer | default({}) }}"
+      not_after: "{{ cert_result.not_after | default('') }}"
+      not_before: "{{ cert_result.not_before | default('') }}"
+      signature_algorithm: "{{ cert_result.signature_algorithm | default('') }}"
+      public_key_type: "{{ cert_result.public_key_type | default('') }}"
+      public_key_size: >-
+        {{
+          cert_result.public_key_data.size | default(none)
+          if cert_result.public_key_data is defined else none
+        }}
+  loop: "{{ pqc_x509_loop.results | default([]) }}"
+  loop_control:
+    loop_var: cert_result
+  when:
+    - pqc_collect_nginx_certs | bool
+    - pqc_nginx_present | default(false)
+    - pqc_x509_loop is defined
+    - not (cert_result.failed | default(false))

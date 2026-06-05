@@ -1,0 +1,88 @@
+---
+# PQC Compliance Pipeline — single JT for Backstage integration (ADR-003 pattern).
+#
+# This playbook is designed to run as an AAP job template triggered by the
+# Backstage compliance plugin. It performs:
+#   Play 1: Cryptographic posture discovery on target hosts (read-only)
+#   Play 2: Normalization to CFF v1.0.0 + Direct POST to Backstage (on localhost)
+#
+# Extra vars injected by the compliance plugin at launch:
+#   scan_id:            UUID assigned by the plugin backend
+#   backstage_api_url:  Base URL of the Backstage backend (e.g., http://backstage:7007)
+#   ingest_token:       Per-scan security token for /findings/ingest (ADR-010)
+#   compliance_profile: Profile UUID from the Settings registry
+#
+# Extra vars from JT defaults (set by install.yml / compliance-profile.yml):
+#   profile_name:           "PQC Cryptographic Readiness"
+#   framework:              "CUSTOM"
+#   certification_status:   "uncertified"
+#   certification_authority: ""
+#   remediate_jt_name:      "compliance-remediate-pqc-readiness"
+#   remediation_playbook:   "playbooks/remediate.yml"
+
+- name: "Play 1: PQC cryptographic posture discovery"
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: security.compliance_pqc_readiness.crypto_posture_snapshot
+
+- name: "Play 2: Normalize and ingest PQC findings"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    scan_id: "{{ scan_id | default('') }}"
+    backstage_api_url: "{{ backstage_api_url | default('') }}"
+    ingest_token: "{{ ingest_token | default('') }}"
+    compliance_profile: "{{ compliance_profile | default('pqc_readiness_v1') }}"
+    profile_name: "{{ profile_name | default('PQC Cryptographic Readiness') }}"
+    certification_status: "{{ certification_status | default('uncertified') }}"
+    certification_authority: "{{ certification_authority | default('') }}"
+
+  tasks:
+    - name: Normalize crypto posture per host
+      security.compliance_pqc_readiness.normalize_pqc:
+        crypto_report: "{{ hostvars[item].pqc_crypto_report }}"
+        profile_id: "{{ compliance_profile }}"
+        profile_name: "{{ profile_name }}"
+        scan_id: "{{ scan_id }}"
+        certification_status: "{{ certification_status }}"
+        certification_authority: "{{ certification_authority }}"
+      register: _pqc_results
+      loop: "{{ groups['all'] | select('ne', 'localhost') | list }}"
+      loop_control:
+        label: "{{ item }}"
+      when: hostvars[item].pqc_crypto_report is defined
+
+    - name: POST findings to Backstage compliance plugin
+      ansible.builtin.uri:
+        url: "{{ backstage_api_url }}/api/compliance/findings/ingest"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          scanId: "{{ scan_id }}"
+          ingestToken: "{{ ingest_token }}"
+          findings: "{{ item.findings }}"
+        validate_certs: false
+        status_code: [200, 201]
+      loop: "{{ _pqc_results.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item | default('unknown') }}"
+      when:
+        - backstage_api_url | length > 0
+        - scan_id | length > 0
+        - ingest_token | length > 0
+        - item.findings is defined
+        - item.findings | length > 0
+      failed_when: false
+      no_log: true
+
+    - name: Emit findings as facts for event-based fallback
+      ansible.builtin.set_fact:
+        findings: "{{ _pqc_results.results | default([]) | map(attribute='findings') | flatten | list }}"
+      when: _pqc_results.results is defined

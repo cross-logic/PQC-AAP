@@ -1,0 +1,29 @@
+---
+# PQC Remediation — placeholder for future implementation.
+#
+# PQC remediation is not yet available because:
+#   1. ML-DSA certificate issuance requires CA infrastructure changes
+#   2. PQC SSH host keys require OpenSSH ML-DSA support (not yet mainstream)
+#   3. Crypto-policy PQC sub-policies are RHEL version-dependent
+#
+# When remediation roles become available, this playbook will import them
+# with tag-based scoping matching the CaC pattern used by STIG/CIS profiles.
+#
+# Selective remediation via Controller:
+#   --tags:       comma-separated rule IDs from the Remediation Builder
+#   --extra-vars: parameter overrides
+#   --limit:      target hosts from the remediation scope selection
+
+- name: "PQC Compliance: Remediation (placeholder)"
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Remediation not yet available
+      ansible.builtin.debug:
+        msg: >-
+          PQC remediation roles are not yet implemented. Findings provide
+          manual fix_text guidance for each rule. Automated remediation
+          will be added as PQC algorithm support matures in RHEL packages.
+      tags: always

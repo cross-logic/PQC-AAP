@@ -1,0 +1,75 @@
+---
+- name: Initialize TLS probe results
+  ansible.builtin.set_fact:
+    pqc_tls_services: []
+  when: pqc_collect_tls_services | bool
+
+- name: Identify listening TCP ports
+  ansible.builtin.command:
+    cmd: ss -tlnp
+  register: _pqc_ss_output
+  changed_when: false
+  failed_when: false
+  when: pqc_collect_tls_services | bool
+
+- name: Determine which probe ports are listening
+  ansible.builtin.set_fact:
+    _pqc_active_tls_ports: >-
+      {{ pqc_tls_probe_ports
+         | select('in', _listening)
+         | list }}
+  vars:
+    _listening: >-
+      {{ _pqc_ss_output.stdout_lines | default([])
+         | map('regex_search', ':(\d+)\s', '\1')
+         | select('ne', None)
+         | map('first')
+         | map('int')
+         | list }}
+  when: pqc_collect_tls_services | bool
+
+- name: Probe TLS services
+  ansible.builtin.shell:
+    cmd: >-
+      echo | timeout {{ pqc_tls_probe_timeout }}
+      openssl s_client -connect 127.0.0.1:{{ item }}
+      -servername {{ inventory_hostname }} 2>&1
+  loop: "{{ _pqc_active_tls_ports | default([]) }}"
+  loop_control:
+    label: "port {{ item }}"
+  register: _pqc_tls_probe_results
+  changed_when: false
+  failed_when: false
+  when: pqc_collect_tls_services | bool
+
+- name: Parse TLS probe results
+  ansible.builtin.set_fact:
+    pqc_tls_services: "{{ pqc_tls_services + [_entry] }}"
+  loop: "{{ _pqc_tls_probe_results.results | default([]) }}"
+  loop_control:
+    label: "port {{ item.item | default('?') }}"
+  when:
+    - pqc_collect_tls_services | bool
+    - item.stdout is defined
+    - "'Protocol' in item.stdout or 'Cipher' in item.stdout"
+  vars:
+    _out: "{{ item.stdout | default('') }}"
+    _protocol: "{{ _out | regex_search('Protocol\\s*:\\s*(\\S+)', '\\1') | default(['unknown'], true) | first }}"
+    _cipher: "{{ _out | regex_search('Cipher\\s*:\\s*(\\S+)', '\\1') | default(['unknown'], true) | first }}"
+    _kex: "{{ _out | regex_search('Server Temp Key:\\s*(.+)', '\\1') | default(['unknown'], true) | first | trim }}"
+    _peer_sig: "{{ _out | regex_search('Peer signature type:\\s*(\\S+)', '\\1') | default(['unknown'], true) | first }}"
+    _server_sig: "{{ _out | regex_search('Server signature type:\\s*(\\S+)', '\\1') | default(['unknown'], true) | first }}"
+    _kex_risk: >-
+      {% set k = _kex | lower %}
+      {% if 'mlkem' in k or 'kyber' in k %}quantum_safe
+      {% elif 'x25519mlkem' in k or 'secp' in k and 'mlkem' in k %}hybrid_transitional
+      {% elif 'ecdh' in k or 'x25519' in k or 'x448' in k or 'dh' in k %}quantum_vulnerable
+      {% else %}unknown{% endif %}
+    _entry:
+      port: "{{ item.item | int }}"
+      protocol: "{{ _protocol }}"
+      cipher: "{{ _cipher }}"
+      key_exchange: "{{ _kex }}"
+      key_exchange_risk: "{{ _kex_risk | trim }}"
+      peer_signature: "{{ _peer_sig }}"
+      server_signature: "{{ _server_sig }}"

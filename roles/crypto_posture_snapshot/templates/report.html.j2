@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PQC Cryptographic Posture — {{ pqc_crypto_report.host }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700;900&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        @page { size: A4; margin: 18mm; }
+        :root {
+            --rh-red: #ee0000; --rh-black: #151515; --rh-white: #ffffff;
+            --rh-gray-100: #f5f5f5; --rh-gray-200: #e0e0e0; --rh-gray-300: #d2d2d2;
+            --rh-gray-500: #6a6e73; --rh-gray-600: #4f5255;
+            --rh-green-100: #e9f5e6; --rh-green-500: #3e8635; --rh-green-700: #1e4f18;
+            --rh-orange-100: #fef6e0; --rh-orange-500: #f0ab00; --rh-orange-700: #795600;
+            --rh-danger-100: #fce8e6; --rh-danger-500: #c9190b; --rh-danger-700: #7d1007;
+            --rh-blue-500: #06c;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Red Hat Text', sans-serif; background: var(--rh-gray-100); color: var(--rh-black); line-height: 1.6; font-size: 14px; }
+        h1, h2, h3 { font-family: 'Red Hat Display', sans-serif; }
+        .mono { font-family: 'Red Hat Mono', monospace; font-size: 0.82rem; }
+        .topbar { background: var(--rh-black); padding: 12px 0; border-bottom: 3px solid var(--rh-red); }
+        .topbar .inner { max-width: 1060px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 16px; }
+        .topbar .wordmark { color: #d2d2d2; font-size: 0.82rem; font-family: 'Red Hat Display', sans-serif; font-weight: 500; }
+        .topbar .divider { width: 1px; height: 24px; background: #4f5255; }
+        .topbar .rh-text { color: var(--rh-white); font-family: 'Red Hat Display', sans-serif; font-weight: 700; font-size: 0.9rem; }
+        .hero { background: linear-gradient(135deg, var(--rh-black) 0%, #2b2b2b 100%); color: var(--rh-white); padding: 40px 0 36px; }
+        .hero .inner { max-width: 1060px; margin: 0 auto; padding: 0 32px; }
+        .hero h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 6px; }
+        .hero .subtitle { color: var(--rh-gray-300); font-size: 0.9rem; }
+        .hero .host-badge { display: inline-block; background: var(--rh-red); color: var(--rh-white); padding: 4px 14px; border-radius: 2px; font-family: 'Red Hat Mono', monospace; font-size: 0.9rem; font-weight: 700; margin-top: 12px; }
+        .container { max-width: 1060px; margin: 0 auto; padding: 28px 32px; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+        .card { background: var(--rh-white); border-radius: 6px; padding: 22px 20px; border-top: 3px solid var(--rh-gray-300); box-shadow: 0 1px 3px rgba(0,0,0,0.08); page-break-inside: avoid; }
+        .card.safe { border-top-color: var(--rh-green-500); }
+        .card.warn { border-top-color: var(--rh-orange-500); }
+        .card.danger { border-top-color: var(--rh-danger-500); }
+        .card.brand { border-top-color: var(--rh-red); }
+        .card .num { font-family: 'Red Hat Display', sans-serif; font-size: 2rem; font-weight: 900; line-height: 1.1; }
+        .card .num.safe { color: var(--rh-green-500); }
+        .card .num.warn { color: var(--rh-orange-500); }
+        .card .num.danger { color: var(--rh-danger-500); }
+        .card .lbl { font-size: 0.72rem; color: var(--rh-gray-500); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
+        section { margin-bottom: 32px; page-break-inside: avoid; }
+        section h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid var(--rh-red); }
+        table { width: 100%; border-collapse: collapse; background: var(--rh-white); border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-size: 0.85rem; }
+        th { background: var(--rh-black); color: var(--rh-white); padding: 10px 16px; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
+        td { padding: 10px 16px; border-bottom: 1px solid var(--rh-gray-200); }
+        tr:last-child td { border-bottom: none; }
+        tbody tr:hover { background: var(--rh-gray-100); }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 2px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .badge.safe { background: var(--rh-green-500); color: var(--rh-white); }
+        .badge.vulnerable { background: var(--rh-danger-500); color: var(--rh-white); }
+        .badge.hybrid { background: var(--rh-orange-500); color: var(--rh-black); }
+        .badge.info { background: var(--rh-blue-500); color: var(--rh-white); }
+        .badge.unknown { background: var(--rh-gray-500); color: var(--rh-white); }
+        .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .tag { display: inline-block; padding: 3px 10px; border-radius: 2px; font-family: 'Red Hat Mono', monospace; font-size: 0.75rem; font-weight: 500; }
+        .tag.safe { background: var(--rh-green-100); color: var(--rh-green-700); }
+        .tag.vulnerable { background: var(--rh-danger-100); color: var(--rh-danger-700); }
+        .tag.hybrid { background: var(--rh-orange-100); color: var(--rh-orange-700); }
+        .empty { background: var(--rh-white); padding: 20px; text-align: center; color: var(--rh-gray-500); border-radius: 6px; font-style: italic; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        footer { text-align: center; color: var(--rh-gray-500); font-size: 0.72rem; padding: 20px 0; border-top: 1px solid var(--rh-gray-300); margin-top: 20px; }
+        footer .rh { color: var(--rh-red); font-weight: 700; }
+        @media print { body { background: var(--rh-white); } .card, table { box-shadow: none; } }
+    </style>
+</head>
+<body>
+    <div class="topbar"><div class="inner"><span class="rh-text">Red Hat</span><div class="divider"></div><span class="wordmark">Ansible Automation Platform</span></div></div>
+
+    <div class="hero"><div class="inner">
+        <h1>PQC Cryptographic Posture Report</h1>
+        <div class="subtitle">Post-Quantum Cryptography readiness assessment</div>
+        <div class="host-badge">{{ pqc_crypto_report.host }}</div>
+    </div></div>
+
+    <div class="container">
+
+        {# ── Classify TLS groups ── #}
+        {% set tls_groups_raw = pqc_crypto_report.openssl_tls1_3_groups | default('') %}
+        {% set tls_groups = tls_groups_raw.split(':') if tls_groups_raw else [] %}
+        {% set ns = namespace(pqc_groups=[], hybrid_groups=[], classical_groups=[]) %}
+        {% for g in tls_groups %}
+        {%   set gl = g | upper %}
+        {%   if 'MLKEM' in gl and ('SECP' in gl or 'X25519' in gl) %}
+        {%     set ns.hybrid_groups = ns.hybrid_groups + [g] %}
+        {%   elif 'MLKEM' in gl %}
+        {%     set ns.pqc_groups = ns.pqc_groups + [g] %}
+        {%   else %}
+        {%     set ns.classical_groups = ns.classical_groups + [g] %}
+        {%   endif %}
+        {% endfor %}
+        {% set ssh_keys = pqc_crypto_report.ssh_host_keys | default([]) %}
+        {% set ssh_vuln = ssh_keys | selectattr('risk', 'eq', 'quantum_vulnerable') | list %}
+        {% set sys_certs = pqc_crypto_report.system_certificates | default([]) %}
+        {% set certs_vuln = sys_certs | selectattr('risk', 'eq', 'quantum_vulnerable') | list %}
+        {% set tls_svcs = pqc_crypto_report.tls_services | default([]) %}
+        {% set tls_vuln = tls_svcs | selectattr('key_exchange_risk', 'eq', 'quantum_vulnerable') | list %}
+        {% set policy = pqc_crypto_report.crypto_policy | default({}) %}
+
+        {# ── Summary ── #}
+        <section>
+            <h2>Executive Summary</h2>
+            <div class="card-grid">
+                <div class="card {{ 'safe' if ns.pqc_groups | length > 0 else 'danger' }}">
+                    <div class="num {{ 'safe' if ns.pqc_groups | length > 0 else 'danger' }}">{{ ns.pqc_groups | length }}</div>
+                    <div class="lbl">PQC KEX Groups</div>
+                </div>
+                <div class="card {{ 'warn' if ns.hybrid_groups | length > 0 else 'danger' }}">
+                    <div class="num {{ 'warn' if ns.hybrid_groups | length > 0 else 'danger' }}">{{ ns.hybrid_groups | length }}</div>
+                    <div class="lbl">Hybrid Groups</div>
+                </div>
+                <div class="card {{ 'danger' if ssh_vuln | length > 0 else 'safe' }}">
+                    <div class="num {{ 'danger' if ssh_vuln | length > 0 else 'safe' }}">{{ ssh_vuln | length }} / {{ ssh_keys | length }}</div>
+                    <div class="lbl">Vulnerable SSH Keys</div>
+                </div>
+                <div class="card {{ 'danger' if certs_vuln | length > 0 else 'safe' }}">
+                    <div class="num {{ 'danger' if certs_vuln | length > 0 else 'safe' }}">{{ certs_vuln | length }} / {{ sys_certs | length }}</div>
+                    <div class="lbl">Vulnerable Certificates</div>
+                </div>
+                <div class="card {{ 'danger' if tls_vuln | length > 0 else 'safe' }}">
+                    <div class="num {{ 'danger' if tls_vuln | length > 0 else 'safe' }}">{{ tls_vuln | length }} / {{ tls_svcs | length }}</div>
+                    <div class="lbl">Vulnerable TLS Services</div>
+                </div>
+                <div class="card brand">
+                    <div class="num">{{ policy.profile | default('N/A') }}</div>
+                    <div class="lbl">Crypto Policy</div>
+                </div>
+            </div>
+        </section>
+
+        {# ── Crypto Policy ── #}
+        <section>
+            <h2>System Crypto Policy</h2>
+            <table>
+                <tr><td style="width:200px; font-weight:600;">Profile</td><td class="mono">{{ policy.profile | default('unknown') }}</td></tr>
+                <tr><td style="font-weight:600;">FIPS Mode</td><td>
+                    {% if policy.fips_enabled | default(false) %}<span class="badge info">Enabled</span>{% else %}<span class="badge unknown">Disabled</span>{% endif %}
+                    <span style="margin-left:8px; color:var(--rh-gray-500); font-size:0.8rem;">{{ policy.fips_output | default('') }}</span>
+                </td></tr>
+                {% if policy.local_overrides | default([]) | length > 0 %}
+                <tr><td style="font-weight:600;">Local Overrides</td><td class="mono">{{ policy.local_overrides | join(', ') }}</td></tr>
+                {% endif %}
+            </table>
+        </section>
+
+        {# ── OpenSSL ── #}
+        <section>
+            <h2>OpenSSL Runtime</h2>
+            <table>
+                <tr><td style="width:200px; font-weight:600;">Version</td><td class="mono">{{ pqc_crypto_report.openssl_version | default('not found') }}</td></tr>
+                <tr><td style="font-weight:600;">PQC Ready</td><td>
+                    {% if ns.pqc_groups | length > 0 %}<span class="badge safe">Yes — ML-KEM supported</span>{% else %}<span class="badge vulnerable">No — ML-KEM not available</span>{% endif %}
+                </td></tr>
+            </table>
+        </section>
+
+        {# ── Packages ── #}
+        <section>
+            <h2>OpenSSL Packages</h2>
+            {% if pqc_crypto_report.openssl_packages | default({}) | length > 0 %}
+            <table>
+                <thead><tr><th>Package</th><th>Version</th><th>Arch</th></tr></thead>
+                <tbody>
+                {% for pkg_name, pkg_list in pqc_crypto_report.openssl_packages.items() %}
+                {% for pkg in pkg_list %}
+                <tr><td class="mono">{{ pkg_name }}</td><td class="mono">{{ pkg.version }}-{{ pkg.release }}</td><td>{{ pkg.arch }}</td></tr>
+                {% endfor %}{% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty">No OpenSSL packages detected</div>{% endif %}
+        </section>
+
+        {# ── TLS Groups ── #}
+        <section>
+            <h2>TLS 1.3 Key Exchange Groups</h2>
+            {% if ns.pqc_groups | length > 0 %}
+            <h3 style="font-size:0.85rem; margin:12px 0 4px; color:var(--rh-green-700);">Quantum Safe</h3>
+            <div class="tag-list">{% for g in ns.pqc_groups %}<span class="tag safe">{{ g }}</span>{% endfor %}</div>
+            {% endif %}
+            {% if ns.hybrid_groups | length > 0 %}
+            <h3 style="font-size:0.85rem; margin:16px 0 4px; color:var(--rh-orange-700);">Hybrid Transitional</h3>
+            <div class="tag-list">{% for g in ns.hybrid_groups %}<span class="tag hybrid">{{ g }}</span>{% endfor %}</div>
+            {% endif %}
+            {% if ns.classical_groups | length > 0 %}
+            <h3 style="font-size:0.85rem; margin:16px 0 4px; color:var(--rh-danger-700);">Classical (Quantum Vulnerable)</h3>
+            <div class="tag-list">{% for g in ns.classical_groups %}<span class="tag vulnerable">{{ g }}</span>{% endfor %}</div>
+            {% endif %}
+            {% if tls_groups | length == 0 %}<div class="empty">No TLS 1.3 groups detected</div>{% endif %}
+        </section>
+
+        {# ── SSH Host Keys ── #}
+        <section>
+            <h2>SSH Host Keys</h2>
+            {% if ssh_keys | length > 0 %}
+            <table>
+                <thead><tr><th>Path</th><th>Algorithm</th><th>Bits</th><th>Fingerprint</th><th>Risk</th></tr></thead>
+                <tbody>
+                {% for key in ssh_keys %}
+                <tr>
+                    <td class="mono">{{ key.path }}</td>
+                    <td>{{ key.algorithm }}</td>
+                    <td>{{ key.bits }}</td>
+                    <td class="mono" style="font-size:0.72rem;">{{ key.fingerprint }}</td>
+                    <td><span class="badge {{ key.risk | replace('quantum_', '') }}">{{ key.risk | replace('_', ' ') }}</span></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty">No SSH host keys found</div>{% endif %}
+        </section>
+
+        {# ── System Certificates ── #}
+        <section>
+            <h2>System Certificates</h2>
+            {% if sys_certs | length > 0 %}
+            <table>
+                <thead><tr><th>Path</th><th>Subject</th><th>Public Key</th><th>Size</th><th>Expires</th><th>Risk</th></tr></thead>
+                <tbody>
+                {% for cert in sys_certs %}
+                <tr>
+                    <td class="mono" style="font-size:0.72rem;">{{ cert.path }}</td>
+                    <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis;">{{ cert.subject }}</td>
+                    <td>{{ cert.public_key_algorithm }}</td>
+                    <td>{{ cert.public_key_size }}</td>
+                    <td style="font-size:0.8rem;">{{ cert.expires }}</td>
+                    <td><span class="badge {{ cert.risk | replace('quantum_', '') }}">{{ cert.risk | replace('_', ' ') }}</span></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty">No certificates found on disk</div>{% endif %}
+        </section>
+
+        {# ── TLS Services ── #}
+        <section>
+            <h2>Active TLS Services</h2>
+            {% if tls_svcs | length > 0 %}
+            <table>
+                <thead><tr><th>Port</th><th>Protocol</th><th>Cipher</th><th>Key Exchange</th><th>KEX Risk</th><th>Peer Sig</th></tr></thead>
+                <tbody>
+                {% for svc in tls_svcs %}
+                <tr>
+                    <td>{{ svc.port }}</td>
+                    <td>{{ svc.protocol }}</td>
+                    <td class="mono" style="font-size:0.72rem;">{{ svc.cipher }}</td>
+                    <td>{{ svc.key_exchange }}</td>
+                    <td><span class="badge {{ svc.key_exchange_risk | replace('quantum_', '') | replace('hybrid_transitional', 'hybrid') }}">{{ svc.key_exchange_risk | replace('_', ' ') }}</span></td>
+                    <td>{{ svc.peer_signature }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty">No TLS services detected on probed ports</div>{% endif %}
+        </section>
+
+        {# ── Nginx Certs ── #}
+        {% if pqc_crypto_report.nginx_certificates | default([]) | length > 0 %}
+        <section>
+            <h2>Nginx TLS Certificates</h2>
+            <table>
+                <thead><tr><th>Path</th><th>Public Key</th><th>Size</th><th>Signature</th><th>Expires</th></tr></thead>
+                <tbody>
+                {% for cert in pqc_crypto_report.nginx_certificates %}
+                <tr>
+                    <td class="mono">{{ cert.path }}</td>
+                    <td>{{ cert.public_key_type | default('—') }}</td>
+                    <td>{{ cert.public_key_size | default('—') }}</td>
+                    <td class="mono">{{ cert.signature_algorithm | default('—') }}</td>
+                    <td>{{ cert.not_after | default('—') }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
+
+        {# ── SSH Config ── #}
+        <section>
+            <h2>SSH Daemon Configuration</h2>
+            {% set all_ssh = pqc_crypto_report.sshd_crypto_lines | default([]) %}
+            {% if all_ssh | length > 0 %}
+            <table>
+                <thead><tr><th>Directive</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for line in all_ssh %}
+                <tr>
+                    <td class="mono">{{ line }}</td>
+                    <td>{% if 'sntrup' in line | lower or 'mlkem' in line | lower %}<span class="badge hybrid">PQC hybrid</span>{% else %}<span class="badge info">Active</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<div class="empty">Using compiled defaults — algorithms depend on OpenSSH and OpenSSL versions</div>{% endif %}
+        </section>
+
+    </div>
+    <footer><p>Generated by <span class="rh">Red Hat</span> Ansible Automation Platform — PQC Cryptographic Discovery | {{ pqc_crypto_report.collected_at }}</p></footer>
+</body>
+</html>

@@ -1,0 +1,27 @@
+---
+- name: Gather package facts for OpenSSL-related inventory
+  ansible.builtin.import_tasks: packages.yml
+
+- name: Collect OpenSSL runtime output
+  ansible.builtin.import_tasks: openssl_runtime.yml
+
+- name: Discover and inspect nginx TLS certificates
+  ansible.builtin.import_tasks: tls_nginx.yml
+
+- name: Read sshd crypto-related configuration lines
+  ansible.builtin.import_tasks: sshd.yml
+
+- name: Scan SSH host key files
+  ansible.builtin.import_tasks: ssh_host_keys.yml
+
+- name: Scan system certificates on disk
+  ansible.builtin.import_tasks: certificates.yml
+
+- name: Probe listening TLS services
+  ansible.builtin.import_tasks: tls_probe.yml
+
+- name: Detect crypto-policies profile
+  ansible.builtin.import_tasks: crypto_policies.yml
+
+- name: Build consolidated cryptographic posture report
+  ansible.builtin.import_tasks: report.yml

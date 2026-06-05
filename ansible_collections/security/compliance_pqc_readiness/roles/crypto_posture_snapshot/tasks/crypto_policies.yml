@@ -1,0 +1,39 @@
+---
+- name: Initialize crypto-policies results
+  ansible.builtin.set_fact:
+    pqc_crypto_policy: {}
+  when: pqc_collect_crypto_policy | bool
+
+- name: Check current crypto-policy profile
+  ansible.builtin.command:
+    cmd: update-crypto-policies --show
+  register: _pqc_crypto_policy_show
+  changed_when: false
+  failed_when: false
+  when: pqc_collect_crypto_policy | bool
+
+- name: Check FIPS mode status
+  ansible.builtin.command:
+    cmd: fips-mode-setup --check
+  register: _pqc_fips_check
+  changed_when: false
+  failed_when: false
+  when: pqc_collect_crypto_policy | bool
+
+- name: Read crypto-policy backend configs
+  ansible.builtin.find:
+    paths: /etc/crypto-policies/local.d
+    patterns: "*.txt"
+    file_type: file
+  register: _pqc_local_policy_files
+  failed_when: false
+  when: pqc_collect_crypto_policy | bool
+
+- name: Assemble crypto-policy facts
+  ansible.builtin.set_fact:
+    pqc_crypto_policy:
+      profile: "{{ _pqc_crypto_policy_show.stdout | default('unknown') | trim }}"
+      fips_enabled: "{{ 'enabled' in (_pqc_fips_check.stdout | default('') | lower) }}"
+      fips_output: "{{ _pqc_fips_check.stdout | default('') | trim }}"
+      local_overrides: "{{ _pqc_local_policy_files.files | default([]) | map(attribute='path') | list }}"
+  when: pqc_collect_crypto_policy | bool

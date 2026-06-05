@@ -1,0 +1,50 @@
+---
+- name: Initialize SSH host key results
+  ansible.builtin.set_fact:
+    pqc_ssh_host_keys: []
+  when: pqc_collect_ssh_host_keys | bool
+
+- name: Find SSH host public key files
+  ansible.builtin.find:
+    paths: /etc/ssh
+    patterns: "ssh_host_*_key.pub"
+    file_type: file
+  register: _pqc_ssh_pubkey_files
+  when: pqc_collect_ssh_host_keys | bool
+
+- name: Read SSH host key metadata
+  ansible.builtin.command:
+    cmd: ssh-keygen -l -f {{ item.path }}
+  loop: "{{ _pqc_ssh_pubkey_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: _pqc_ssh_keygen_results
+  changed_when: false
+  failed_when: false
+  when: pqc_collect_ssh_host_keys | bool
+
+- name: Parse SSH host keys into structured facts
+  ansible.builtin.set_fact:
+    pqc_ssh_host_keys: "{{ pqc_ssh_host_keys + [_entry] }}"
+  loop: "{{ _pqc_ssh_keygen_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.path | default('unknown') }}"
+  when:
+    - pqc_collect_ssh_host_keys | bool
+    - item.rc is defined
+    - item.rc == 0
+  vars:
+    _parts: "{{ item.stdout.split() }}"
+    _algo: "{{ _parts[-1] | regex_replace('[()]', '') }}"
+    _risk: >-
+      {% if _algo in ['RSA', 'DSA'] %}quantum_vulnerable
+      {% elif _algo in ['ECDSA'] %}quantum_vulnerable
+      {% elif _algo in ['ED25519', 'Ed25519'] %}quantum_vulnerable
+      {% elif 'mlkem' in _algo | lower or 'dilithium' in _algo | lower %}quantum_safe
+      {% else %}quantum_vulnerable{% endif %}
+    _entry:
+      path: "{{ item.item.path }}"
+      bits: "{{ _parts[0] | int }}"
+      fingerprint: "{{ _parts[1] }}"
+      algorithm: "{{ _algo }}"
+      risk: "{{ _risk | trim }}"

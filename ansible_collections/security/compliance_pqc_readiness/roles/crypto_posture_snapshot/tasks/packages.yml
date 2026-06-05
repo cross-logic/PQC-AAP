@@ -1,0 +1,20 @@
+---
+- name: Initialize OpenSSL package map
+  ansible.builtin.set_fact:
+    pqc_openssl_packages: {}
+  when: pqc_collect_packages | bool
+
+- name: Gather installed package facts
+  ansible.builtin.package_facts:
+    manager: auto
+  failed_when: false
+  when: pqc_collect_packages | bool
+
+- name: Record OpenSSL-related packages
+  ansible.builtin.set_fact:
+    pqc_openssl_packages: "{{ pqc_openssl_packages | combine({item: ansible_facts.packages[item]}) }}"
+  loop: "{{ pqc_openssl_package_names }}"
+  when:
+    - pqc_collect_packages | bool
+    - ansible_facts.packages is defined
+    - item in ansible_facts.packages

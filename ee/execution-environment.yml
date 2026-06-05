@@ -1,0 +1,49 @@
+---
+# Execution Environment: PQC Cryptographic Readiness
+#
+# Build:
+#   ansible-builder build -f ee/execution-environment.yml -t compliance-pqc-readiness:latest -v3
+#
+# PQC discovery uses native OS tools (openssl, ssh-keygen, ss, update-crypto-policies)
+# that are already present on RHEL targets. The EE only needs the collection dependencies
+# for community.crypto (x509_certificate_info) and the collection itself.
+
+version: 3
+
+build_arg_defaults:
+  ANSIBLE_GALAXY_CLI_COLLECTION_OPTS: '--pre'
+
+options:
+  package_manager_path: /usr/bin/microdnf
+
+images:
+  base_image:
+    name: registry.redhat.io/ansible-automation-platform-26/ee-minimal-rhel9:latest
+
+dependencies:
+  galaxy:
+    collections:
+      - name: community.crypto
+      - name: ansible.posix
+      - name: community.general
+  python: []
+  system: []
+
+additional_build_files:
+  - src: ../ansible_collections
+    dest: collections
+
+additional_build_steps:
+  prepend_galaxy:
+    - COPY _build/collections/ /usr/share/ansible/collections/
+  prepend_final:
+    - ENV PYCMD=/usr/bin/python3.12
+  append_final:
+    - RUN echo "=== PQC Readiness EE Build Info ==="
+    - >-
+      RUN python3 -c
+      "import OpenSSL; print('pyOpenSSL:', OpenSSL.__version__)"
+      2>/dev/null || echo 'pyOpenSSL: not installed (optional)'
+    - >-
+      RUN ansible-galaxy collection list security.compliance_pqc_readiness
+      2>/dev/null || echo 'Collection: embedded via COPY'
