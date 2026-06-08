@@ -32,6 +32,21 @@ options:
       If omitted, findings are returned only in the module result (suitable for pipeline mode).
     type: str
     required: false
+  scan_id:
+    description: >
+      Scan UUID assigned by the Backstage compliance plugin. Overrides the
+      auto-generated hash-based scan ID in scan_metadata.
+    type: str
+    required: false
+  certification_status:
+    description: Certification status of this profile.
+    type: str
+    default: uncertified
+    choices: [certified, conformant, uncertified]
+  certification_authority:
+    description: Name of the certifying authority (if any).
+    type: str
+    default: ''
 author:
   - Red Hat Ansible Automation Platform
 '''
@@ -84,7 +99,7 @@ from ansible.module_utils.basic import AnsibleModule
 PQC_SAFE_ALGORITHMS = frozenset([
     'dilithium', 'ml-dsa', 'ml-kem', 'mlkem', 'kyber',
     'sphincs', 'slh-dsa', 'falcon', 'bike', 'hqc',
-    'frodokem', 'classic-mceliece',
+    'frodokem', 'classic-mceliece', 'pqc',
 ])
 
 QUANTUM_VULNERABLE_KEY_ALGOS = frozenset([
@@ -475,6 +490,12 @@ def main():
             profile_id=dict(type='str', default='pqc_readiness_v1'),
             profile_name=dict(type='str', default='Post-Quantum Cryptography Readiness'),
             output_file=dict(type='str', required=False, default=None),
+            scan_id=dict(type='str', required=False, default=None),
+            certification_status=dict(
+                type='str', default='uncertified',
+                choices=['certified', 'conformant', 'uncertified'],
+            ),
+            certification_authority=dict(type='str', default=''),
         ),
         supports_check_mode=True,
     )
@@ -483,6 +504,9 @@ def main():
     profile_id = module.params['profile_id']
     profile_name = module.params['profile_name']
     output_file = module.params['output_file']
+    scan_id_override = module.params['scan_id']
+    cert_status = module.params['certification_status']
+    cert_authority = module.params['certification_authority']
 
     host = report.get('host', 'unknown')
     collected_at = report.get('collected_at', '')
@@ -498,11 +522,20 @@ def main():
 
     for f in findings:
         f['host'] = host
+        f.setdefault('stig_id', '')
+        f.setdefault('cis_id', '')
+        f.setdefault('cce_id', '')
+        f.setdefault('cci_id', '')
+        ev = f.get('evidence', {})
+        f['actual_value'] = ev.get('actual_value', '')
+        f['expected_value'] = ev.get('expected_value', '')
 
     summary = build_summary(findings)
 
+    resolved_scan_id = scan_id_override if scan_id_override else f'pqc-{short_hash(host + collected_at)}'
+
     scan_metadata = {
-        'scan_id': f'pqc-{short_hash(host + collected_at)}',
+        'scan_id': resolved_scan_id,
         'profile_id': profile_id,
         'profile_name': profile_name,
         'framework': 'CUSTOM',
@@ -513,6 +546,10 @@ def main():
         },
         'timestamp': collected_at,
         'host': host,
+        'certification': {
+            'status': cert_status,
+            'authority': cert_authority,
+        },
     }
 
     cff_report = {

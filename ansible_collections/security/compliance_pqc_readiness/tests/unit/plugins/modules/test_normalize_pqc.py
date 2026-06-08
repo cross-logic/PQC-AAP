@@ -130,13 +130,14 @@ def _run_module(crypto_report, **extra_args):
     )
     spec = importlib.util.spec_from_file_location('normalize_pqc', module_path)
     mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
 
     args = {'crypto_report': crypto_report}
     args.update(extra_args)
     set_module_args(args)
 
     with pytest.raises(AnsibleExitJson) as exc_info:
-        spec.loader.exec_module(mod)
+        mod.main()
 
     return exc_info.value.args[0]
 
