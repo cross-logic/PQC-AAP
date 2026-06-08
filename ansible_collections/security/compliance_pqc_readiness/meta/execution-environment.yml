@@ -1,0 +1,51 @@
+---
+# Execution Environment Profile: PQC Cryptographic Readiness
+# Used by the AAP EE Builder (or Portal EE Build Experience) to construct
+# a PQC assessment-ready EE.
+#
+# This EE includes:
+#   community.crypto — provides x509_certificate_info for inspecting
+#     TLS certificates on nginx and system certificate stores.
+#   ansible.posix — POSIX utilities for file discovery and service checks.
+#   community.general — general-purpose modules used by the discovery role.
+#
+# PQC discovery uses native OS tools (openssl, ssh-keygen, ss,
+# update-crypto-policies) that are already present on RHEL 8/9 targets.
+# No scanner binaries need to be installed in the EE — all evaluation
+# is read-only using built-in system commands.
+#
+# Build locally:
+#   cd ansible_collections/security/compliance_pqc_readiness
+#   ansible-builder build -f meta/execution-environment.yml -t compliance-pqc-readiness:latest -v3
+#
+# Build via Portal EE Build Experience:
+#   Upload this file as the EE definition in the Portal UI.
+#   The Portal will build and register the EE automatically.
+
+version: 3
+
+build_arg_defaults:
+  ANSIBLE_GALAXY_CLI_COLLECTION_OPTS: '--pre'
+
+options:
+  package_manager_path: /usr/bin/microdnf
+
+images:
+  base_image:
+    name: registry.redhat.io/ansible-automation-platform-26/ee-minimal-rhel9:latest
+
+dependencies:
+  galaxy:
+    collections:
+      - name: community.crypto
+      - name: ansible.posix
+      - name: community.general
+  python: []
+  system: []
+
+additional_build_steps:
+  append_final:
+    - RUN echo "=== PQC Readiness EE Build Info ==="
+    - RUN ansible-galaxy collection list community.crypto 2>/dev/null || echo "community.crypto: MISSING"
+    - RUN ansible-galaxy collection list ansible.posix 2>/dev/null || echo "ansible.posix: MISSING"
+    - RUN ansible-galaxy collection list community.general 2>/dev/null || echo "community.general: MISSING"
