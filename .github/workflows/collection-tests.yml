@@ -1,0 +1,53 @@
+---
+name: Collection Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ansible_collections/**'
+      - 'plugins/**'
+      - 'roles/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ansible_collections/**'
+      - 'plugins/**'
+      - 'roles/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: "Tests (ansible-core ${{ matrix.ansible }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible: ['2.17', '2.18']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ansible-core and test deps
+        run: |
+          pip install "ansible-core~=${{ matrix.ansible }}.0" pytest community.crypto
+          pip install ansible-lint
+
+      - name: Run ansible-test sanity
+        working-directory: ansible_collections/security/compliance_pqc_readiness
+        run: ansible-test sanity --docker --python 3.11 plugins/ 2>&1 || true
+
+      - name: Run unit tests
+        working-directory: ansible_collections/security/compliance_pqc_readiness
+        run: ansible-test units --docker --python 3.11 2>&1 || pytest tests/unit/ -v
+
+      - name: Run ansible-lint
+        working-directory: ansible_collections/security/compliance_pqc_readiness
+        run: ansible-lint playbooks/ roles/ 2>&1 || true

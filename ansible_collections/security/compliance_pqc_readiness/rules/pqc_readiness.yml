@@ -1,0 +1,58 @@
+---
+profile:
+  framework: CUSTOM
+  version: v1.0.0
+  rule_count: 8
+
+rules:
+  - id: pqc_openssl_mlkem_support
+    title: OpenSSL ML-KEM Key Exchange Support
+    severity: high
+    description: >
+      OpenSSL must support ML-KEM (Kyber) hybrid key exchange groups in TLS 1.3
+      to enable post-quantum key encapsulation.
+    check_text: 'Run: openssl list -tls-groups -tls1_3 and verify ML-KEM groups are listed.'
+    fix_text: 'Upgrade OpenSSL to 3.5+ which includes ML-KEM support, or apply RHEL crypto-policy with PQC modules.'
+    disruption: high
+    reboot_required: false
+    aap_impact: safe
+
+  - id: pqc_openssl_version
+    title: OpenSSL Version Supports PQC Algorithms
+    severity: medium
+    description: 'OpenSSL 3.5+ is required for native ML-KEM and ML-DSA algorithm support.'
+    check_text: 'Run: openssl version'
+    fix_text: 'Upgrade to OpenSSL 3.5 or later (RHEL 9.7+ provides this).'
+    disruption: high
+    reboot_required: false
+    aap_impact: safe
+
+  - id: pqc_sshd_kex_algorithms
+    title: SSHD Key Exchange Algorithms Include PQC
+    severity: medium
+    description: >
+      The sshd_config KexAlgorithms directive should include a post-quantum
+      key exchange method (e.g., mlkem768x25519-sha256) when available.
+    check_text: 'Check /etc/ssh/sshd_config for KexAlgorithms directive.'
+    fix_text: 'Add PQC KEX algorithms to sshd_config KexAlgorithms when supported by OpenSSH.'
+    disruption: low
+    reboot_required: false
+    aap_impact: safe
+
+  - id: pqc_crypto_policy_profile
+    title: System Crypto-Policy Supports PQC
+    severity: low
+    description: >
+      The system-wide crypto-policy should enable PQC algorithm modules
+      to ensure all applications default to quantum-safe configurations.
+    check_text: 'Run: update-crypto-policies --show'
+    fix_text: 'Apply a crypto-policy sub-policy: update-crypto-policies --set DEFAULT:PQC'
+    disruption: medium
+    reboot_required: false
+    aap_impact: safe
+
+  # Dynamic rules (generated per-asset by normalizer):
+  # pqc_cert_<hash>        — per-certificate PQC readiness
+  # pqc_nginx_cert_<hash>  — per-nginx-certificate PQC readiness
+  # pqc_ssh_hostkey_<algo> — per-SSH-host-key PQC readiness
+  # pqc_tls_service_port_<port> — per-TLS-service PQC key exchange
