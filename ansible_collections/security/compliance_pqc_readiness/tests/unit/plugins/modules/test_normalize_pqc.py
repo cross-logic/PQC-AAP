@@ -264,6 +264,17 @@ class TestNormalizePQCCFFCompliance:
             assert 'evidence' in f
             assert 'remediation' in f
 
+    def test_all_findings_have_dashboard_metadata(self):
+        result = _run_module(CRYPTO_REPORT_VULNERABLE)
+        for f in result['findings']:
+            assert 'scanner' in f, f"Missing 'scanner' in {f['rule_id']}"
+            assert f['scanner'] == 'custom'
+            assert 'disruption' in f, f"Missing 'disruption' in {f['rule_id']}"
+            assert f['disruption'] in ('low', 'medium', 'high')
+            assert 'aap_impact' in f, f"Missing 'aap_impact' in {f['rule_id']}"
+            assert f['aap_impact'] in ('safe', 'caution', 'breaks-connectivity')
+            assert 'aap_impact_reason' in f, f"Missing 'aap_impact_reason' in {f['rule_id']}"
+
     def test_scan_metadata_has_certification(self):
         result = _run_module(CRYPTO_REPORT_VULNERABLE)
         meta = result['scan_metadata']
@@ -299,6 +310,59 @@ class TestNormalizePQCCFFCompliance:
         result = _run_module(CRYPTO_REPORT_VULNERABLE)
         for f in result['findings']:
             assert f['remediation']['available'] is False
+
+
+class TestNormalizePQCAAPimpact:
+    """Verify AAP-impact classification for connectivity-sensitive rules."""
+
+    def test_openssl_rules_are_caution(self):
+        result = _run_module(CRYPTO_REPORT_VULNERABLE)
+        for rule_id in ('pqc_openssl_mlkem_support', 'pqc_openssl_version'):
+            f = [f for f in result['findings'] if f['rule_id'] == rule_id][0]
+            assert f['aap_impact'] == 'caution', f"{rule_id} should be caution"
+
+    def test_sshd_kex_is_caution(self):
+        result = _run_module(CRYPTO_REPORT_VULNERABLE)
+        f = [f for f in result['findings'] if f['rule_id'] == 'pqc_sshd_kex_algorithms'][0]
+        assert f['aap_impact'] == 'caution'
+
+    def test_crypto_policy_is_caution(self):
+        result = _run_module(CRYPTO_REPORT_VULNERABLE)
+        f = [f for f in result['findings'] if f['rule_id'] == 'pqc_crypto_policy_profile'][0]
+        assert f['aap_impact'] == 'caution'
+
+    def test_ssh_hostkeys_are_caution(self):
+        result = _run_module(CRYPTO_REPORT_VULNERABLE)
+        ssh_findings = [f for f in result['findings'] if f['rule_id'].startswith('pqc_ssh_hostkey_')]
+        assert len(ssh_findings) > 0
+        for f in ssh_findings:
+            assert f['aap_impact'] == 'caution', f"{f['rule_id']} should be caution"
+
+    def test_system_certs_are_caution(self):
+        result = _run_module(CRYPTO_REPORT_VULNERABLE)
+        cert_findings = [f for f in result['findings'] if f['rule_id'].startswith('pqc_cert_')]
+        assert len(cert_findings) > 0
+        for f in cert_findings:
+            assert f['aap_impact'] == 'caution', f"{f['rule_id']} should be caution"
+
+    def test_tls_services_are_caution(self):
+        result = _run_module(CRYPTO_REPORT_VULNERABLE)
+        tls_findings = [f for f in result['findings'] if f['rule_id'].startswith('pqc_tls_service_port_')]
+        assert len(tls_findings) > 0
+        for f in tls_findings:
+            assert f['aap_impact'] == 'caution', f"{f['rule_id']} should be caution"
+
+    def test_nginx_certs_would_be_safe(self):
+        """Nginx certificates should be classified as safe (AAP uses SSH, not nginx)."""
+        report = dict(CRYPTO_REPORT_VULNERABLE)
+        report['nginx_certificates'] = [
+            {'path': '/etc/nginx/ssl/cert.pem', 'public_key_type': 'RSA', 'public_key_size': '2048', 'signature_algorithm': 'sha256WithRSAEncryption'},
+        ]
+        result = _run_module(report)
+        nginx_findings = [f for f in result['findings'] if f['rule_id'].startswith('pqc_nginx_cert_')]
+        assert len(nginx_findings) > 0
+        for f in nginx_findings:
+            assert f['aap_impact'] == 'safe', f"{f['rule_id']} should be safe"
 
 
 class TestNormalizePQCOutputFile:

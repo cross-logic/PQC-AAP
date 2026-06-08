@@ -15,7 +15,10 @@ rules:
     fix_text: 'Upgrade OpenSSL to 3.5+ which includes ML-KEM support, or apply RHEL crypto-policy with PQC modules.'
     disruption: high
     reboot_required: false
-    aap_impact: safe
+    aap_impact: caution
+    aap_impact_reason: >
+      Upgrading OpenSSL replaces the cryptographic library used by SSH and Python;
+      backward-compatible but warrants review for service restarts and dependency changes.
 
   - id: pqc_openssl_version
     title: OpenSSL Version Supports PQC Algorithms
@@ -25,7 +28,10 @@ rules:
     fix_text: 'Upgrade to OpenSSL 3.5 or later (RHEL 9.7+ provides this).'
     disruption: high
     reboot_required: false
-    aap_impact: safe
+    aap_impact: caution
+    aap_impact_reason: >
+      Same as pqc_openssl_mlkem_support — core crypto library upgrade affects SSH and
+      Python module execution on managed hosts.
 
   - id: pqc_sshd_kex_algorithms
     title: SSHD Key Exchange Algorithms Include PQC
@@ -37,7 +43,11 @@ rules:
     fix_text: 'Add PQC KEX algorithms to sshd_config KexAlgorithms when supported by OpenSSH.'
     disruption: low
     reboot_required: false
-    aap_impact: safe
+    aap_impact: caution
+    aap_impact_reason: >
+      Adding PQC KEX algorithms alongside existing ones is safe; replacing the list
+      with PQC-only algorithms breaks AAP SSH connectivity if Controller does not
+      support PQC KEX.
 
   - id: pqc_crypto_policy_profile
     title: System Crypto-Policy Supports PQC
@@ -49,10 +59,29 @@ rules:
     fix_text: 'Apply a crypto-policy sub-policy: update-crypto-policies --set DEFAULT:PQC'
     disruption: medium
     reboot_required: false
-    aap_impact: safe
+    aap_impact: caution
+    aap_impact_reason: >
+      Crypto-policies affect SSH, OpenSSL, and GnuTLS system-wide; DEFAULT:PQC is
+      additive but verify the sub-policy does not restrict legacy algorithms needed
+      by the Controller.
 
   # Dynamic rules (generated per-asset by normalizer):
-  # pqc_cert_<hash>        — per-certificate PQC readiness
-  # pqc_nginx_cert_<hash>  — per-nginx-certificate PQC readiness
+
+  # pqc_cert_<hash> — per-certificate PQC readiness
+  # aap_impact: caution
+  # Reason: Does not affect SSH auth, but re-issuing certs can break HTTPS calls
+  # that AAP modules make from the managed host.
+
+  # pqc_nginx_cert_<hash> — per-nginx-certificate PQC readiness
+  # aap_impact: safe
+  # Reason: AAP connects via SSH, not nginx; re-issuing nginx certs is application-layer only.
+
   # pqc_ssh_hostkey_<algo> — per-SSH-host-key PQC readiness
+  # aap_impact: caution
+  # Reason: Generating new PQC host keys alongside existing ones is safe; removing
+  # old keys or changing the presented key breaks known_hosts verification on Controller.
+
   # pqc_tls_service_port_<port> — per-TLS-service PQC key exchange
+  # aap_impact: caution
+  # Reason: Could include services AAP modules depend on during playbook execution;
+  # port 22 is handled by the dedicated sshd_kex rule.

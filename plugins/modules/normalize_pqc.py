@@ -107,6 +107,55 @@ QUANTUM_VULNERABLE_KEY_ALGOS = frozenset([
 ])
 
 
+AAP_IMPACT = {
+    'pqc_openssl_mlkem_support': {
+        'impact': 'caution',
+        'reason': 'Upgrading OpenSSL replaces the crypto library used by SSH and Python on managed hosts.',
+    },
+    'pqc_openssl_version': {
+        'impact': 'caution',
+        'reason': 'Core crypto library upgrade affects SSH and Python module execution on managed hosts.',
+    },
+    'pqc_sshd_kex_algorithms': {
+        'impact': 'caution',
+        'reason': 'Adding PQC KEX alongside existing algorithms is safe; replacing the list breaks AAP SSH if Controller lacks PQC support.',
+    },
+    'pqc_crypto_policy_profile': {
+        'impact': 'caution',
+        'reason': 'Crypto-policies affect SSH, OpenSSL, and GnuTLS system-wide; verify sub-policy does not restrict algorithms needed by Controller.',
+    },
+}
+
+AAP_IMPACT_DYNAMIC = {
+    'pqc_cert_': {
+        'impact': 'caution',
+        'reason': 'Re-issuing certificates can break HTTPS calls that AAP modules make from the managed host.',
+    },
+    'pqc_nginx_cert_': {
+        'impact': 'safe',
+        'reason': 'AAP connects via SSH, not nginx; nginx certificates are application-layer only.',
+    },
+    'pqc_ssh_hostkey_': {
+        'impact': 'caution',
+        'reason': 'Generating new PQC host keys alongside existing ones is safe; removing old keys breaks known_hosts verification.',
+    },
+    'pqc_tls_service_port_': {
+        'impact': 'caution',
+        'reason': 'Could include services that AAP modules depend on during playbook execution.',
+    },
+}
+
+
+def get_aap_impact(rule_id):
+    """Look up AAP-impact classification for a rule ID."""
+    if rule_id in AAP_IMPACT:
+        return AAP_IMPACT[rule_id]
+    for prefix, entry in AAP_IMPACT_DYNAMIC.items():
+        if rule_id.startswith(prefix):
+            return entry
+    return {'impact': 'safe', 'reason': ''}
+
+
 def is_pqc_safe(algorithm_string):
     """Check if an algorithm string contains any PQC-safe algorithm."""
     lower = algorithm_string.lower()
@@ -529,6 +578,11 @@ def main():
         ev = f.get('evidence', {})
         f['actual_value'] = ev.get('actual_value', '')
         f['expected_value'] = ev.get('expected_value', '')
+        f['scanner'] = 'custom'
+        f['disruption'] = f.get('remediation', {}).get('disruption', 'medium')
+        impact = get_aap_impact(f['rule_id'])
+        f['aap_impact'] = impact['impact']
+        f['aap_impact_reason'] = impact['reason']
 
     summary = build_summary(findings)
 
