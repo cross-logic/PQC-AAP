@@ -1,0 +1,18 @@
+---
+name: compliance-pqc-readiness
+display_name: PQC Cryptographic Readiness Assessment
+version: 0.2.0
+domain: security
+tags:
+  - compliance
+  - pqc
+  - cryptography
+  - security
+  - rhel
+  - quantum
+applicable_os:
+  - RHEL 8
+  - RHEL 9
+frameworks:
+  - PQC Readiness v1.0.0
+source: security.compliance_pqc_readiness

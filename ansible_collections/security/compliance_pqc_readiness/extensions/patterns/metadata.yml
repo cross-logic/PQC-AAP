@@ -1,0 +1,26 @@
+---
+name: compliance-pqc-readiness
+display_name: PQC Cryptographic Readiness Assessment
+version: 0.2.0
+description: >
+  Post-Quantum Cryptography readiness assessment for RHEL 8/9 hosts.
+  Read-only evaluation of cryptographic posture across OpenSSL, certificates,
+  SSH keys, TLS services, and RHEL crypto-policies. Produces Common Findings
+  Format (CFF) v1.0.0 JSON for the Backstage compliance plugin.
+domain: security
+tags:
+  - compliance
+  - pqc
+  - cryptography
+  - security
+  - rhel
+  - quantum
+applicable_os:
+  - RHEL 8
+  - RHEL 9
+frameworks:
+  - PQC Readiness v1.0.0
+source: security.compliance_pqc_readiness
+platform:
+  os_family: ["RedHat"]
+  os_version: ["8", "9"]
