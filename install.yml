@@ -30,8 +30,12 @@
       name: "PQC Cryptographic Readiness"
       framework: "CUSTOM"
       version: "v1.0.0"
+      platform: "RHEL 8/9"
+      scanner: "custom"
       certification_status: "uncertified"
       certification_authority: ""
+      os_family: ["RedHat"]
+      os_version: ["8", "9"]
       scan_jt_name: "compliance-scan-pqc-readiness"
       scan_playbook: "ansible_collections/security/compliance_pqc_readiness/playbooks/pqc_pipeline.yml"
       remediate_jt_name: "compliance-remediate-pqc-readiness"
@@ -67,8 +71,13 @@
           extra_vars:
             profile_name: "{{ profile.name }}"
             framework: "{{ profile.framework }}"
+            version: "{{ profile.version }}"
+            platform: "{{ profile.platform }}"
+            scanner: "{{ profile.scanner }}"
             certification_status: "{{ profile.certification_status }}"
             certification_authority: "{{ profile.certification_authority }}"
+            os_family: "{{ profile.os_family }}"
+            os_version: "{{ profile.os_version }}"
             remediate_jt_name: "{{ profile.remediate_jt_name }}"
             remediation_playbook: "{{ profile.remediate_playbook }}"
         validate_certs: false
